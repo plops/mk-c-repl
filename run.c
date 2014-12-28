@@ -51,6 +51,18 @@ void reload_if_new_lib(struct run*run)
   if(run->state == NULL)
     run->state = run->api.init();
   run->api.reload(run->state);
-  
 }
 
+int main(void)
+{
+  struct run run = {0};
+  for(;;){
+    load_if_new_lib(&run);
+    if(run.handle)
+      if(!run.api.step(run.state))
+	break;
+    usleep(32000);
+  }
+  run_unload(&run);
+  return 0;
+}
