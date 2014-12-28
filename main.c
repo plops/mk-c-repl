@@ -74,7 +74,7 @@ int main(void)
     if(run.handle)
       if(!run.api.step(run.state))
 	break;
-    usleep(32000);
+    usleep(100000);
   }
   run_unload(&run);
   return 0;
