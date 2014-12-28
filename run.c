@@ -7,7 +7,7 @@ struct run_state{
 
 struct run_state run_state;
 
-void init(struct run_state *state)
+struct run_state *init()
 {
   printf("init\n");
   run_state.a = 10;
