@@ -28,7 +28,29 @@ void reload_if_new_lib(struct run*run)
     run->api.unload(run->state);
     dlclose(run->handle);
   }
-  void *handle = dlopen(GAME_LIBRARY,RTLD_NOW);
+  void *handle = dlopen(RUN_LIBRARY,RTLD_NOW);
+  if(!handle){
+    run->handle = NULL;
+    run->id = 0;
+    printf("error during dlopen.\n");
+    return;
+  }
+  run->handle = handle;
+  run->id = attr.st_ino;
+  const struct run_api *api =
+    dlsym(run->handle,"RUN_API");
+  if(api == NULL){
+    dlclose(run->handle);
+    run->handle = NULL;
+    run->id = 0;
+    printf("error during dlsym of api struct.\n");
+    return ;
+  }
+
+  run->api = *api;
+  if(run->state == NULL)
+    run->state = run->api.init();
+  run->api.reload(run->state);
   
 }
 
