@@ -63,6 +63,6 @@ int main(void)
 	break;
     usleep(32000);
   }
-  run_unload(&run);
+  run.api.unload(&run);
   return 0;
 }
