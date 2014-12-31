@@ -10,7 +10,7 @@
 
 const char *RUN_LIBRARY = "./librun.so";
 
-#define d(e) do{if(0)(e);}while(0)
+#define d(e) do{if(1)(e);}while(0)
 
 struct run {
   void *handle;
@@ -30,101 +30,69 @@ static void run_unload(struct run*run)
   }
 }
 
-static void run_load(struct run *run)
+static void run_load_if_new_lib(struct run*run)
 {
-    struct stat attr;
-    if ((stat(RUN_LIBRARY, &attr) == 0) && (run->id != attr.st_ino)) {
-        if (run->handle) {
-            run->api.unload(run->state);
-            dlclose(run->handle);
-        }
-        void *handle = dlopen(RUN_LIBRARY, RTLD_NOW);
-        if (handle) {
-            run->handle = handle;
-            run->id = attr.st_ino;
-            const struct run_api *api = dlsym(run->handle, "RUN_API");
-            if (api != NULL) {
-                run->api = *api;
-                if (run->state == NULL)
-                    run->state = run->api.init();
-                run->api.reload(run->state);
-            } else {
-                dlclose(run->handle);
-                run->handle = NULL;
-                run->id = 0;
-            }
-        } else {
-            run->handle = NULL;
-            run->id = 0;
-        }
+  struct stat attr;
+  d(printf("trying to load library\n"));
+  if(stat(RUN_LIBRARY,&attr)!=0){
+    d(printf("RUN_LIBRARY doesn't exist.\n"));
+    return;
+  }
+  d(printf("check if inode was modified\n"));
+  if (run->id == attr.st_ino) { // note: id is initially 0 and the
+				 // file should therefore be loaded at
+				 // first call
+    d(printf("file didn't change\n"));
+    return;
+  }
+  if(run->handle){
+    d(printf("library was already open, closing it.\n"));
+    run->api.unload(run->state);
+    dlclose(run->handle);
+  }
+  d(printf("dlopen library\n"));
+  void *handle = dlopen(RUN_LIBRARY,RTLD_NOW);
+  if(!handle){
+    run->handle = NULL;
+    run->id = 0;
+    d(printf("error during dlopen.\n"));
+    return;
+  }
+  run->handle = handle;
+  run->id = attr.st_ino;
+  d(printf("load the struct\n"));
+  const struct run_api *api =
+    dlsym(run->handle,"RUN_API");
+  if(api == NULL){
+    dlclose(run->handle);
+    run->handle = NULL;
+    run->id = 0;
+    d(printf("error during dlsym of api struct.\n"));
+    return ;
+  }
+  d(printf("copy the data\n"));
+  run->api = *api;
+  if(run->state == NULL){
+    d(printf("set state by calling init\n"));
+    if(run->api.init)
+      run->state = run->api.init();
+    else {
+      d(printf("init isn't defined\n"));
+      return;
     }
+  }
+  if(run->api.reload && run->state){
+    d(printf("call reload\n"));
+    run->api.reload(run->state);
+  }
 }
-
-
-/* static void run_load_if_new_lib(struct run*run) */
-/* { */
-/*   struct stat attr; */
-/*   d(printf("trying to load library\n")); */
-/*   if(stat(RUN_LIBRARY,&attr)!=0){ */
-/*     d(printf("RUN_LIBRARY doesn't exist.\n")); */
-/*     return; */
-/*   } */
-/*   d(printf("check if inode was modified\n")); */
-/*   if (run->id == attr.st_ino) { // note: id is initially 0 and the */
-/* 				 // file should therefore be loaded at */
-/* 				 // first call */
-/*     d(printf("file didn't change\n")); */
-/*     return; */
-/*   } */
-/*   if(run->handle){ */
-/*     d(printf("library was already open, closing it.\n")); */
-/*     run->api.unload(run->state); */
-/*     dlclose(run->handle); */
-/*   } */
-/*   d(printf("dlopen library\n")); */
-/*   void *handle = dlopen(RUN_LIBRARY,RTLD_NOW); */
-/*   if(!handle){ */
-/*     run->handle = NULL; */
-/*     run->id = 0; */
-/*     d(printf("error during dlopen.\n")); */
-/*     return; */
-/*   } */
-/*   run->handle = handle; */
-/*   run->id = attr.st_ino; */
-/*   d(printf("load the struct\n")); */
-/*   const struct run_api *api = */
-/*     dlsym(run->handle,"RUN_API"); */
-/*   if(api == NULL){ */
-/*     dlclose(run->handle); */
-/*     run->handle = NULL; */
-/*     run->id = 0; */
-/*     d(printf("error during dlsym of api struct.\n")); */
-/*     return ; */
-/*   } */
-/*   d(printf("copy the data\n")); */
-/*   run->api = *api; */
-/*   if(run->state == NULL){ */
-/*     d(printf("set state by calling init\n")); */
-/*     if(run->api.init) */
-/*       run->state = run->api.init(); */
-/*     else { */
-/*       d(printf("init isn't defined\n")); */
-/*       return; */
-/*     } */
-/*   } */
-/*   if(run->api.reload && run->state){ */
-/*     d(printf("call reload\n")); */
-/*     run->api.reload(run->state); */
-/*   } */
-/* } */
 
 int main(void)
 {
   struct run run = {0};
   for(;;){
     d(printf("try to reload\n"));
-    //run_load_if_new_lib(&run);
-    run_load(&run);
+    run_load_if_new_lib(&run);
     d(printf("call step\n"));
     if(run.handle){
       //      d(printf("step is pointer to this address: %lx %lx %lx\n", run.api, run.api.step, run.state));
